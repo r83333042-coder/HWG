@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HWG - Lucky Spin Data</title>
+    <style>
+        :root { --orange: #FF9800; --dark: #1a1a1a; --blue: #007bff; --white: #ffffff; --grey: #f8f9fa; }
+        body { font-family: 'Inter', sans-serif; background: #e9ecef; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: auto; }
+        .header { background: var(--dark); color: white; padding: 25px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.15); margin-bottom: 25px; }
+        .header h1 span { color: var(--orange); }
+        .stats-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px; }
+        .stat-item { background: white; padding: 15px; border-radius: 15px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border-bottom: 4px solid var(--orange); }
+        .data-card { background: white; border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow: hidden; }
+        .search-box { width: 100%; padding: 12px 20px; border: 1px solid #ddd; border-radius: 12px; margin-bottom: 20px; font-size: 15px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 15px; background: var(--grey); color: #555; font-size: 13px; font-weight: 600; border-bottom: 2px solid #eee; }
+        td { padding: 15px; border-bottom: 1px solid #f1f1f1; font-size: 14px; }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+        .badge-pending { background: #fff3cd; color: #856404; }
+        .badge-done { background: #d4edda; color: #155724; }
+        .btn-back { background: var(--blue); color: white; text-decoration: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; font-size: 13px; }
+        .btn-action { padding: 5px 10px; border: none; border-radius: 5px; cursor: pointer; font-size: 11px; background: var(--dark); color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🎰 HWG <span>Spin Log</span></h1>
+        <a href="admin.html" class="btn-back">← Back to Admin</a>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-item"><small>Total Spins</small><div id="total-spins">0</div></div>
+        <div class="stat-item"><small>Pending Rewards</small><div id="pending-spins" style="color: var(--orange);">0</div></div>
+        <div class="stat-item"><small>Last Win</small><div id="last-win" style="font-size:14px;">None</div></div>
+    </div>
+
+    <div class="data-card">
+        <input type="text" id="searchWin" class="search-box" placeholder="Username ya code से search करें..." onkeyup="renderWins()">
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>User & Date</th>
+                        <th>Prize Jeeta</th>
+                        <th>Win Code</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="win-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SHEET_API_URL = "https://script.google.com/macros/s/AKfycby2_MfJllIhpnBhst_9NvAprY1NR4-1CUrcyabBsW-DuNxRvZ5w3LU2kCdneDpcymoW/exec";
+
+    // ✅ गूगल शीट से लाइव डेटा खींचने का फंक्शन
+    async function loadDataFromSheet() {
+        try {
+            const response = await fetch(`${SHEET_API_URL}?table=spin_history`);
+            const data = await response.json();
+            if (data && data.length > 1) {
+                let sheetHistory = data.slice(1).map(row => ({
+                    user: row[0],
+                    prize: row[1],
+                    code: row[2],
+                    date: row[3],
+                    isDelivered: row[4]
+                }));
+                localStorage.setItem('spin_history', JSON.stringify(sheetHistory));
+                renderWins();
+            }
+        } catch (e) { console.error("Data Fetch Error:", e); }
+    }
+
+    async function syncUpdate(keyVal, newVal) {
+        fetch(SHEET_API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                table: "spin_history",
+                action: "update_data",
+                keyValue: keyVal,
+                keyIndex: 2, // WinCode Column
+                colToUpdate: 4, // Status Column (Column E = index 4)
+                newValue: newVal
+            })
+        });
+    }
+
+    function renderWins() {
+        let history = JSON.parse(localStorage.getItem('spin_history')) || [];
+        let search = document.getElementById('searchWin').value.toLowerCase();
+        
+        document.getElementById('total-spins').innerText = history.length;
+        let pending = history.filter(h => h.isDelivered !== 'yes').length;
+        document.getElementById('pending-spins').innerText = pending;
+        if(history.length > 0) document.getElementById('last-win').innerText = history[history.length-1].prize;
+
+        let html = "";
+        [...history].reverse().forEach((h, i) => {
+            let actualIndex = history.length - 1 - i;
+            if(h.user.toLowerCase().includes(search) || h.code.toLowerCase().includes(search)) {
+                let isDone = (h.isDelivered === 'yes');
+                html += `<tr>
+                    <td><b>@${h.user}</b><br><small>${h.date}</small></td>
+                    <td style="color:var(--orange); font-weight:bold;">${h.prize}</td>
+                    <td><code>${h.code}</code></td>
+                    <td><span class="badge ${isDone ? 'badge-done' : 'badge-pending'}">${isDone ? 'Delivered' : 'Pending'}</span></td>
+                    <td>
+                        ${!isDone ? `<button class="btn-action" onclick="markDone(${actualIndex})">Mark Done</button>` : '---'}
+                    </td>
+                </tr>`;
+            }
+        });
+        document.getElementById('win-table-body').innerHTML = html || "<tr><td colspan='5' align='center'>No data.</td></tr>";
+    }
+
+    function markDone(index) {
+        let history = JSON.parse(localStorage.getItem('spin_history'));
+        history[index].isDelivered = 'yes';
+        syncUpdate(history[index].code, "yes");
+        localStorage.setItem('spin_history', JSON.stringify(history));
+        renderWins();
+        alert("Marked as Done!");
+    }
+
+    window.onload = loadDataFromSheet;
+</script>
+</body>
+</html>

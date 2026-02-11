@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HWG - Lucky Spin</title>
+    <style>
+        body { font-family: sans-serif; background: #e9ecef; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 380px; }
+        .wheel-box { position: relative; width: 280px; height: 280px; margin: 20px auto; border-radius: 50%; border: 8px solid #1a1a1a; }
+        #canvas { width: 100%; height: 100%; transition: transform 4s cubic-bezier(0.15, 0, 0.15, 1); border-radius: 50%; }
+        .pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid #ff0000; z-index: 10; }
+        .btn { width: 100%; padding: 14px; background: #00A2FF; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .history { background: white; width: 100%; max-width: 380px; border-radius: 20px; padding: 20px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h3>HWG Lucky Spin 🎰</h3>
+        <div style="color:#00A2FF; font-weight:bold;">Points: <span id="pts">0</span></div>
+        <div class="wheel-box">
+            <div class="pointer"></div>
+            <canvas id="canvas" width="400" height="400"></canvas>
+        </div>
+        <button id="spin-btn" class="btn" onclick="spin()">SPIN (1 POINT)</button>
+        
+        <div id="win-area" style="display:none; margin-top:15px; padding:15px; background:#fff9e6; border:2px dashed orange; border-radius:15px;">
+            <div id="prize" style="font-weight:bold; font-size:18px;"></div>
+            <code id="code" style="display:block; margin:10px 0;"></code>
+            <button class="btn" style="background:#1a1a1a;" onclick="copyAndDM()">Copy & DM Instagram</button>
+            <p style="color:red; font-size:10px; margin-top:5px;">⚠️ Expire in 7 Days!</p>
+        </div>
+        <br><a href="index.html" style="font-size:12px; color:#aaa; text-decoration:none;">← Dashboard</a>
+    </div>
+
+    <div class="history">
+        <h4 style="margin:0 0 10px 0;">📜 Win History</h4>
+        <div id="h-list" style="font-size:12px;"></div>
+    </div>
+
+<script>
+    // 🔥 GOOGLE SHEET CONFIG
+    const SHEET_API_URL = "https://script.google.com/macros/s/AKfycby2_MfJllIhpnBhst_9NvAprY1NR4-1CUrcyabBsW-DuNxRvZ5w3LU2kCdneDpcymoW/exec";
+
+    // ✅ Sheet में डेटा भेजने का मास्टर फंक्शन
+    async function syncToSheet(tableName, actionType, dataArray) {
+        try {
+            await fetch(SHEET_API_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify({
+                    table: tableName,
+                    action: actionType,
+                    rowData: dataArray
+                })
+            });
+            console.log("Data Sync Triggered for " + tableName);
+        } catch (e) { console.log("Sync Error", e); }
+    }
+
+    const canvas = document.getElementById('canvas'); 
+    const ctx = canvas.getContext('2d');
+    const prizes = ["50% OFF", "100 LIKES", "10 FOLLOW", "2 POINTS", "TRY AGAIN", "25% OFF"];
+    const colors = ["#FF5733", "#2ecc71", "#3498db", "#9b59b6", "#e67e22", "#f1c40f"];
+
+    function draw() {
+        let angle = (2 * Math.PI) / 6;
+        for (let i = 0; i < 6; i++) {
+            ctx.beginPath(); 
+            ctx.fillStyle = colors[i]; 
+            ctx.moveTo(200, 200);
+            ctx.arc(200, 200, 200, i * angle, (i + 1) * angle); 
+            ctx.fill();
+            ctx.save(); 
+            ctx.translate(200, 200); 
+            ctx.rotate(i * angle + angle / 2);
+            ctx.fillStyle = "white"; 
+            ctx.font = "bold 18px Arial"; 
+            ctx.textAlign = "right";
+            ctx.fillText(prizes[i], 180, 10); 
+            ctx.restore();
+        }
+    }
+
+    let db = JSON.parse(localStorage.getItem('hwg_db')) || [];
+    let session = JSON.parse(localStorage.getItem('hwg_session'));
+    let currentDeg = 0;
+
+    function spin() {
+        if (!session) return alert("Login First!");
+        let user = db.find(u => u.username === session.username);
+        
+        if (!user || user.points < 1) return alert("Spin के लिए 1 Point चाहिए!");
+        
+        // 1 Point काटना
+        user.points = parseFloat((user.points - 1).toFixed(2));
+        document.getElementById('pts').innerText = user.points;
+        
+        // पॉइंट कटने को शीट में अपडेट करें
+        fetch(SHEET_API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                table: "users",
+                action: "update_data",
+                keyValue: user.username,
+                keyIndex: 0,
+                colToUpdate: 3, 
+                newValue: user.points
+            })
+        });
+
+        // विनिंग लॉजिक (Verified यूजर्स के लिए 50% चांस)
+        let winIdx; 
+        let rand = Math.random() * 100;
+        if (user.isVerified) winIdx = rand < 50 ? [1,2,3][Math.floor(Math.random()*3)] : [0,4,5][Math.floor(Math.random()*3)];
+        else winIdx = rand < 10 ? [1,2,3][Math.floor(Math.random()*3)] : [0,4,5][Math.floor(Math.random()*3)];
+
+        currentDeg += (360 - (winIdx * 60)) + 1440;
+        canvas.style.transform = `rotate(${currentDeg}deg)`;
+
+        setTimeout(() => {
+            let p = prizes[winIdx]; 
+            let c = p === "TRY AGAIN" ? "NO-CODE" : "HWG-"+Math.random().toString(36).substr(2,6).toUpperCase();
+            
+            if(p === "2 POINTS") {
+                user.points += 2;
+                // शीट में बोनस पॉइंट्स सिंक करें
+                fetch(SHEET_API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({
+                        table: "users",
+                        action: "update_data",
+                        keyValue: user.username,
+                        keyIndex: 0,
+                        colToUpdate: 3, 
+                        newValue: user.points
+                    })
+                });
+            }
+            
+            let today = new Date().toLocaleDateString();
+            
+            // ✅ Google Sheet में विनर का डेटा सेव करना
+            syncToSheet("spin_history", "add_row", [user.username, p, c, today, "pending"]);
+
+            // लोकल हिस्ट्री अपडेट
+            let hist = JSON.parse(localStorage.getItem('spin_history')) || [];
+            hist.push({ user: user.username, prize: p, code: c, date: today, isDelivered: 'pending' });
+            localStorage.setItem('spin_history', JSON.stringify(hist));
+            localStorage.setItem('hwg_db', JSON.stringify(db));
+            
+            document.getElementById('prize').innerText = p; 
+            document.getElementById('code').innerText = c;
+            document.getElementById('win-area').style.display = "block"; 
+            loadH();
+        }, 4000);
+    }
+
+    function copyAndDM() {
+        let c = document.getElementById('code').innerText;
+        navigator.clipboard.writeText(c).then(() => {
+            alert("Code Copy हो गया! अब Instagram DM करें।");
+            window.location.href = "https://www.instagram.com/direct/t/heworkgrowthoffical/";
+        });
+    }
+
+    function loadH() {
+        let hist = JSON.parse(localStorage.getItem('spin_history')) || [];
+        let myHist = hist.filter(h => h.user === session.username);
+        document.getElementById('h-list').innerHTML = myHist.reverse().map(w => `
+            <div style="border-bottom:1px solid #eee; padding:8px;">
+                <b style="color:#00A2FF;">${w.prize}</b> - <span style="font-family:monospace;">${w.code}</span>
+                <br><small style="color:#999;">Date: ${w.date}</small>
+            </div>`).join('');
+    }
+
+    window.onload = () => { 
+        draw(); 
+        if(session) { 
+            let user = db.find(u => u.username === session.username);
+            if(user) document.getElementById('pts').innerText = user.points; 
+            loadH(); 
+        } 
+    };
+</script>
+</body>
+</html>

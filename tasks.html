@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HWG - Task Control Center</title>
+    <style>
+        :root { --blue: #007bff; --dark: #1a1a1a; --white: #ffffff; --red: #ff4444; --bg: #f0f2f5; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: auto; }
+        .header { background: var(--dark); color: white; padding: 20px 30px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 20px rgba(0,0,0,0.1); margin-bottom: 25px; }
+        .btn-back { background: var(--blue); color: white; text-decoration: none; padding: 10px 20px; border-radius: 12px; font-weight: bold; font-size: 13px; transition: 0.3s; }
+        .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .card { background: white; padding: 25px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        h3 { margin-top: 0; color: var(--dark); border-bottom: 2px solid #eee; padding-bottom: 10px; font-size: 18px; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { font-size: 12px; font-weight: bold; color: #888; text-transform: uppercase; margin-bottom: 5px; display: block; }
+        input { width: 100%; padding: 12px; border: 2px solid #f1f1f1; border-radius: 12px; font-size: 14px; box-sizing: border-box; }
+        .btn-add { width: 100%; padding: 14px; background: var(--dark); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .task-list-box { padding-right: 5px; }
+        .task-card { background: white; padding: 15px; border-radius: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid var(--blue); }
+        .btn-del { background: #fff1f1; color: var(--red); border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1 style="margin:0; font-size:20px;">⚙️ Task Control <span style="color:var(--blue);">Center</span></h1>
+        <a href="admin.html" class="btn-back">← Admin Dashboard</a>
+    </div>
+
+    <div class="main-grid">
+        <div class="card">
+            <h3>🆕 Create New Task</h3>
+            <div class="input-group">
+                <label>Task Name</label>
+                <input type="text" id="task-name" placeholder="e.g. Subscribe Our YouTube">
+            </div>
+            <div class="input-group">
+                <label>Action Link</label>
+                <input type="text" id="task-link" placeholder="https://instagram.com/...">
+            </div>
+            <div class="input-group">
+                <label>Reward Points</label>
+                <input type="number" id="task-pts" placeholder="e.g. 5">
+            </div>
+            <button class="btn-add" onclick="createNewTask()">Publish Task Now</button>
+        </div>
+
+        <div class="task-list-box">
+            <h3 style="margin-bottom:20px;">🏃 Running Tasks</h3>
+            <div id="active-tasks"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SHEET_API_URL = "https://script.google.com/macros/s/AKfycby2_MfJllIhpnBhst_9NvAprY1NR4-1CUrcyabBsW-DuNxRvZ5w3LU2kCdneDpcymoW/exec";
+
+    async function syncToSheet(tableName, actionType, dataArray) {
+        fetch(SHEET_API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                table: tableName,
+                action: actionType,
+                rowData: dataArray
+            })
+        });
+    }
+
+    function loadTasks() {
+        let tasks = JSON.parse(localStorage.getItem('hwg_tasks')) || [];
+        let html = "";
+        [...tasks].reverse().forEach((t, i) => {
+            html += `<div class="task-card">
+                <div><b>${t.name}</b><br><small style="color:var(--blue);">Reward: +${t.points} Pts</small></div>
+                <button class="btn-del" onclick="deleteTask(${tasks.length - 1 - i})">Delete</button>
+            </div>`;
+        });
+        document.getElementById('active-tasks').innerHTML = html || "<p style='text-align:center;color:#999;'>No tasks found.</p>";
+    }
+
+    function createNewTask() {
+        let name = document.getElementById('task-name').value.trim();
+        let link = document.getElementById('task-link').value.trim();
+        let pts = parseFloat(document.getElementById('task-pts').value);
+
+        if(!name || !link || isNaN(pts)) return alert("Details sahi se bhariye!");
+
+        let taskId = Date.now();
+        let tasks = JSON.parse(localStorage.getItem('hwg_tasks')) || [];
+        tasks.push({ id: taskId, name: name, link: link, points: pts });
+        
+        // ✅ SYNC TO SHEET: Naya task 'tasks' tab mein save hoga
+        syncToSheet("tasks", "add_row", [taskId, name, link, pts, "active"]);
+
+        localStorage.setItem('hwg_tasks', JSON.stringify(tasks));
+        alert("Task Synced to Sheet!");
+        location.reload();
+    }
+
+    function deleteTask(index) {
+        if(confirm("Delete this task?")) {
+            let tasks = JSON.parse(localStorage.getItem('hwg_tasks')) || [];
+            tasks.splice(index, 1);
+            localStorage.setItem('hwg_tasks', JSON.stringify(tasks));
+            loadTasks();
+        }
+    }
+
+    window.onload = loadTasks;
+</script>
+</body>
+</html>

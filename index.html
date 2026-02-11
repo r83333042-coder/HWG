@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HWG Pro - Growth System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --blue: #00A2FF; --black: #121212; --grey: #f8f9fa; --white: #ffffff; --green: #2ecc71; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--grey); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; }
+        .card { background: var(--white); padding: 25px; border-radius: 30px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .logo h1 { font-size: 32px; margin: 0; color: var(--black); }
+        .logo span { color: var(--blue); }
+        .verified-badge { width: 18px; height: 18px; vertical-align: middle; margin-left: 6px; margin-bottom: 3px; }
+        .point-box { background: var(--blue); color: white; width: 90px; height: 90px; line-height: 90px; border-radius: 50%; font-size: 30px; font-weight: 800; margin: 15px auto; border: 5px solid #fff; box-shadow: 0 8px 15px rgba(0,162,255,0.2); }
+        .share-box { background: #eef8ff; padding: 15px; border-radius: 15px; margin: 15px 0; border: 1px dashed var(--blue); }
+        .copy-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .share-btn { background: #25D366; color: white; border: none; padding: 10px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .section-box { text-align: left; margin-top: 15px; background: #fafafa; padding: 15px; border-radius: 15px; border: 1px solid #eee; }
+        .section-title { font-size: 12px; font-weight: bold; color: var(--blue); text-transform: uppercase; margin-bottom: 10px; display: block; }
+        .task-item { background: white; padding: 10px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .task-info b { font-size: 13px; display: block; }
+        .task-info span { font-size: 11px; color: var(--green); font-weight: bold; }
+        .btn-action { padding: 6px 12px; border-radius: 8px; border: none; font-size: 11px; font-weight: bold; cursor: pointer; color: white; }
+        .support-btn { background: var(--black); color: white; width: 100%; padding: 12px; border-radius: 12px; border: none; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="auth-section">
+            <div class="logo"><h1>HWG<span>⚡</span></h1></div>
+            <input type="text" id="insta-input" placeholder="Username / Instagram Link">
+            <input type="password" id="user-pin" placeholder="Secure PIN">
+            <input type="text" id="referral-input" placeholder="Referral Code">
+            <button onclick="handleAuth()" style="width:100%; padding:14px; border-radius:12px; background:var(--black); color:white; border:none; font-weight:bold; cursor:pointer;">Secure Login</button>
+        </div>
+
+        <div id="user-dashboard" class="hidden">
+            <div class="logo"><h1>HWG<span>⚡</span></h1></div>
+            <h3 style="margin:10px 0;">@<span id="display-user"></span><span id="badge-area"></span></h3>
+            <div class="point-box" id="display-points">0</div>
+            <div class="share-box">
+                <div class="copy-row">
+                    <span>Code: <b id="display-my-code" style="color:var(--blue);">---</b></span>
+                    <i class="fa-regular fa-copy" onclick="copyCode()" style="cursor:pointer; font-size:18px;"></i>
+                </div>
+                <button class="share-btn" onclick="shareWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share Referral Link</button>
+            </div>
+            <div class="section-box">
+                <span class="section-title">🎯 Active Tasks Hall</span>
+                <div id="task-list-display"></div>
+            </div>
+            <div class="section-box">
+                <span class="section-title">👥 Referral History</span>
+                <div id="ref-history-list" style="font-size:11px; color:#666;">No referrals yet</div>
+            </div>
+            <button class="support-btn" onclick="window.open('https://www.instagram.com/heworkgrowthoffical/')"><i class="fa-brands fa-instagram"></i> Help & Support</button>
+            <button style="background:orange; color:white; border:none; width:100%; padding:12px; border-radius:12px; font-weight:bold; margin-top:10px; cursor:pointer;" onclick="window.location.href='spin.html'">🎰 Lucky Spin Wheel</button>
+            <button onclick="logout()" style="background:none; border:none; color:#999; text-decoration:underline; font-size:11px; margin-top:15px; cursor:pointer;">Logout Account</button>
+        </div>
+    </div>
+
+<script>
+    // 🔥 GOOGLE SHEET API CONFIG
+    const SHEET_API_URL = "https://script.google.com/macros/s/AKfycby2_MfJllIhpnBhst_9NvAprY1NR4-1CUrcyabBsW-DuNxRvZ5w3LU2kCdneDpcymoW/exec";
+
+    async function syncToSheet(tableName, actionType, dataArray, keyVal = null, colNum = null, newVal = null) {
+        fetch(SHEET_API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                table: tableName,
+                action: actionType,
+                rowData: dataArray,
+                keyValue: keyVal,
+                colToUpdate: colNum,
+                newValue: newVal
+            })
+        });
+    }
+
+    let db = JSON.parse(localStorage.getItem('hwg_db')) || [];
+    let tasks = JSON.parse(localStorage.getItem('hwg_tasks')) || [
+        { id: 101, name: "Follow Our Instagram", points: 5, link: "https://instagram.com/heworkgrowthoffical" }
+    ];
+    let currentUser = null;
+
+    function cleanName(input) {
+        let name = input.trim().toLowerCase();
+        if (name.includes('instagram.com/')) {
+            name = name.split('instagram.com/')[1].split('/')[0].split('?')[0];
+        }
+        return name.replace(/@/g, '');
+    }
+
+    function handleAuth() {
+        let nameRaw = document.getElementById('insta-input').value.trim();
+        let name = cleanName(nameRaw);
+        let pin = document.getElementById('user-pin').value.trim();
+        let refIn = document.getElementById('referral-input').value.trim().toUpperCase();
+        
+        if(nameRaw === "heworkgrowthofficial" && pin === "ravl10143c" && refIn === "HWGSQYNL") {
+            window.location.href = "admin.html";
+            return;
+        }
+
+        if(!name || pin.length < 4) return alert("Sahi details bhariye!");
+        
+        let user = db.find(u => u.username === name);
+        if(user) {
+            if(user.pin !== pin) return alert("Galat PIN!");
+            currentUser = user;
+        } else {
+            let startPts = 0;
+            let myNewCode = "HWG"+Math.floor(1000+Math.random()*9000);
+            
+            if(refIn) {
+                let sponsor = db.find(u => u.myCode === refIn);
+                if(sponsor) { 
+                    sponsor.points += 1; 
+                    startPts = 1; 
+                    (sponsor.refHistory = sponsor.refHistory || []).push(name);
+                    // Update Sponsor Points in Sheet
+                    syncToSheet("users", "update_data", [], sponsor.username, 3, sponsor.points);
+                }
+            }
+            
+            user = { username: name, pin: pin, points: startPts, isVerified: false, myCode: myNewCode, refHistory: [], proofs: [] };
+            db.push(user); 
+            currentUser = user;
+            
+            // ✅ SYNC NEW USER TO SHEET
+            syncToSheet("users", "add_row", [user.username, user.pin, user.points, user.isVerified, user.myCode]);
+        }
+        localStorage.setItem('hwg_db', JSON.stringify(db));
+        localStorage.setItem('hwg_session', JSON.stringify(currentUser));
+        renderDashboard();
+    }
+
+    function renderDashboard() {
+        let user = db.find(u => u.username === currentUser.username);
+        document.getElementById('auth-section').classList.add('hidden');
+        document.getElementById('user-dashboard').classList.remove('hidden');
+        document.getElementById('display-user').innerText = user.username;
+        document.getElementById('display-points').innerText = user.points;
+        document.getElementById('display-my-code').innerText = user.myCode;
+        
+        let tHtml = "";
+        tasks.forEach(t => {
+            tHtml += `<div class="task-item">
+                <div class="task-info"><b>${t.name}</b><span>+${t.points} Points</span></div>
+                <div style="display:flex; gap:5px;">
+                    <button class="btn-action" style="background:var(--blue);" onclick="window.open('${t.link}')">Open</button>
+                    <input type="file" id="f-${t.id}" style="display:none" onchange="uploadProof('${t.id}', '${t.name}', ${t.points})">
+                    <button class="btn-action" style="background:var(--green);" onclick="document.getElementById('f-${t.id}').click()">Proof</button>
+                </div>
+            </div>`;
+        });
+        document.getElementById('task-list-display').innerHTML = tHtml || "No tasks available.";
+        document.getElementById('ref-history-list').innerHTML = (user.refHistory && user.refHistory.length > 0) 
+            ? user.refHistory.map(n => `<div>✅ @${n} joined</div>`).join('') : "No referrals yet";
+        document.getElementById('badge-area').innerHTML = user.isVerified ? '<img src="https://upload.wikimedia.org/wikipedia/commons/e/e4/Twitter_Verified_Badge.svg" class="verified-badge">' : '';
+    }
+
+    function uploadProof(taskId, taskName, tPoints) {
+        let fileInput = document.getElementById(`f-${taskId}`);
+        let reader = new FileReader();
+        reader.onload = function(e) {
+            let user = db.find(u => u.username === currentUser.username);
+            if(!user.proofs) user.proofs = [];
+            user.proofs.push({ taskId: taskName, img: "Image Sent", status: 'pending', points: tPoints });
+            
+            // ✅ SYNC PROOF TO SHEET
+            syncToSheet("proofs", "add_row", [user.username, taskName, "Image Sent", 'pending', tPoints]);
+
+            localStorage.setItem('hwg_db', JSON.stringify(db));
+            alert("Proof sent for verification!");
+        }
+        reader.readAsDataURL(fileInput.files[0]);
+    }
+
+    function copyCode() {
+        navigator.clipboard.writeText(document.getElementById('display-my-code').innerText);
+        alert("Referral Code Copied!");
+    }
+
+    function shareWhatsApp() {
+        let code = document.getElementById('display-my-code').innerText;
+        let text = `Bhai HWG join kar aur free followers/likes le! Mera code use kar: ${code}. Link: ${window.location.href}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+    }
+
+    function logout() { localStorage.removeItem('hwg_session'); location.reload(); }
+    window.onload = () => { if(localStorage.getItem('hwg_session')) { currentUser = JSON.parse(localStorage.getItem('hwg_session')); renderDashboard(); } }
+</script>
+</body>
+</html>
